@@ -49,6 +49,7 @@
 #include <limits>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 NS_LOG_COMPONENT_DEFINE ("EmuNetDevice");
 
@@ -58,7 +59,7 @@ NS_OBJECT_ENSURE_REGISTERED (EmuNetDevice);
 
 #define EMU_MAGIC 65867
 
-TypeId 
+TypeId
 EmuNetDevice::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::EmuNetDevice")
@@ -68,27 +69,27 @@ EmuNetDevice::GetTypeId (void)
                    UintegerValue (0), // arbitrary un-used value because no setter
                    MakeUintegerAccessor (&EmuNetDevice::GetMtu),
                    MakeUintegerChecker<uint16_t> ())
-    .AddAttribute ("Address", 
+    .AddAttribute ("Address",
                    "The ns-3 MAC address of this (virtual) device.",
                    Mac48AddressValue (Mac48Address ("ff:ff:ff:ff:ff:ff")),
                    MakeMac48AddressAccessor (&EmuNetDevice::m_address),
                    MakeMac48AddressChecker ())
-    .AddAttribute ("DeviceName", 
+    .AddAttribute ("DeviceName",
                    "The name of the underlying real device (e.g. eth1).",
                    StringValue ("eth1"),
                    MakeStringAccessor (&EmuNetDevice::m_deviceName),
                    MakeStringChecker ())
-    .AddAttribute ("Start", 
+    .AddAttribute ("Start",
                    "The simulation time at which to spin up the device thread.",
                    TimeValue (Seconds (0.)),
                    MakeTimeAccessor (&EmuNetDevice::m_tStart),
                    MakeTimeChecker ())
-    .AddAttribute ("Stop", 
+    .AddAttribute ("Stop",
                    "The simulation time at which to tear down the device thread.",
                    TimeValue (Seconds (0.)),
                    MakeTimeAccessor (&EmuNetDevice::m_tStop),
                    MakeTimeChecker ())
-    .AddAttribute ("EncapsulationMode", 
+    .AddAttribute ("EncapsulationMode",
                    "The link-layer encapsulation type to use.",
                    EnumValue (DIX),
                    MakeEnumAccessor (&EmuNetDevice::SetEncapsulationMode),
@@ -97,11 +98,11 @@ EmuNetDevice::GetTypeId (void)
 
     //
     // Transmit queueing discipline for the device which includes its own set
-    // of trace hooks.  Note that this is really going to run "on top of" the 
+    // of trace hooks.  Note that this is really going to run "on top of" the
     // queueing discipline that will most likely be present in the devices of
     // the underlying operating system.
     //
-    .AddAttribute ("TxQueue", 
+    .AddAttribute ("TxQueue",
                    "A queue to use as the transmit queue in the device.",
                    PointerValue (),
                    MakePointerAccessor (&EmuNetDevice::m_queue),
@@ -117,74 +118,74 @@ EmuNetDevice::GetTypeId (void)
 
     //
     // Trace sources at the "top" of the net device, where packets transition
-    // to/from higher layers.  These points do not really correspond to the 
-    // MAC layer of the underlying operating system, but exist to provide 
+    // to/from higher layers.  These points do not really correspond to the
+    // MAC layer of the underlying operating system, but exist to provide
     // a consitent tracing environment.  These trace hooks should really be
     // interpreted as the points at which a packet leaves the ns-3 environment
     // destined for the underlying operating system or vice-versa.
     //
-    .AddTraceSource ("MacTx", 
+    .AddTraceSource ("MacTx",
                      "Trace source indicating a packet has arrived for transmission by this device",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_macTxTrace))
-    .AddTraceSource ("MacTxDrop", 
+    .AddTraceSource ("MacTxDrop",
                      "Trace source indicating a packet has been dropped by the device before transmission",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_macTxDropTrace))
-    .AddTraceSource ("MacPromiscRx", 
+    .AddTraceSource ("MacPromiscRx",
                      "A packet has been received by this device, has been passed up from the physical layer "
                      "and is being forwarded up the local protocol stack.  This is a promiscuous trace,",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_macPromiscRxTrace))
-    .AddTraceSource ("MacRx", 
+    .AddTraceSource ("MacRx",
                      "A packet has been received by this device, has been passed up from the physical layer "
                      "and is being forwarded up the local protocol stack.  This is a non-promiscuous trace,",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_macRxTrace))
 #if 0
     // Not currently implemented for this device
-    .AddTraceSource ("MacRxDrop", 
+    .AddTraceSource ("MacRxDrop",
                      "Trace source indicating a packet was dropped before being forwarded up the stack",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_macRxDropTrace))
 #endif
     //
     // In normal ns-3 net devices, these trace souces correspond to the "bottom"
-    // of the net device, where packets transition to/from the channel.  In 
+    // of the net device, where packets transition to/from the channel.  In
     // the case of the emu device, there is no physical layer access -- all we
     // do is to send packets to another device that is really at a "real" MAC
     // level.  Since it could be misleading to call anything here PHY, we do not
     // implement these trace sources.
     //
 #if 0
-    .AddTraceSource ("PhyTxBegin", 
+    .AddTraceSource ("PhyTxBegin",
                      "Trace source indicating a packet has begun transmitting over the channel",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_phyTxBeginTrace))
-    .AddTraceSource ("PhyTxEnd", 
+    .AddTraceSource ("PhyTxEnd",
                      "Trace source indicating a packet has been completely transmitted over the channel",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_phyTxEndTrace))
-    .AddTraceSource ("PhyTxDrop", 
+    .AddTraceSource ("PhyTxDrop",
                      "Trace source indicating a packet has been dropped by the device during transmission",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_phyTxDropTrace))
-    .AddTraceSource ("PhyRxBegin", 
+    .AddTraceSource ("PhyRxBegin",
                      "Trace source indicating a packet has begun being received by the device",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_phyRxBeginTrace))
-    .AddTraceSource ("PhyRxEnd", 
+    .AddTraceSource ("PhyRxEnd",
                      "Trace source indicating a packet has been completely received by the device",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_phyRxEndTrace))
-    .AddTraceSource ("PhyRxDrop", 
+    .AddTraceSource ("PhyRxDrop",
                      "Trace source indicating a packet has been dropped by the device during reception",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_phyRxDropTrace))
 #endif
     //
-    // Trace sources designed to simulate a packet sniffer facility (tcpdump). 
+    // Trace sources designed to simulate a packet sniffer facility (tcpdump).
     //
-    .AddTraceSource ("Sniffer", 
+    .AddTraceSource ("Sniffer",
                      "Trace source simulating a non-promiscuous packet sniffer attached to the device",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_snifferTrace))
-    .AddTraceSource ("PromiscSniffer", 
+    .AddTraceSource ("PromiscSniffer",
                      "Trace source simulating a promiscuous packet sniffer attached to the device",
                      MakeTraceSourceAccessor (&EmuNetDevice::m_promiscSnifferTrace))
   ;
   return tid;
 }
 
-EmuNetDevice::EmuNetDevice () 
+EmuNetDevice::EmuNetDevice ()
   :
     m_startEvent (),
     m_stopEvent (),
@@ -207,7 +208,7 @@ EmuNetDevice::~EmuNetDevice ()
   m_packetBuffer = 0;
 }
 
-void 
+void
 EmuNetDevice::DoDispose ()
 {
   NS_LOG_FUNCTION_NOARGS ();
@@ -219,7 +220,7 @@ EmuNetDevice::DoDispose ()
   NetDevice::DoDispose ();
 }
 
-void 
+void
 EmuNetDevice::SetEncapsulationMode (enum EncapsulationMode mode)
 {
   NS_LOG_FUNCTION (mode);
@@ -272,18 +273,18 @@ EmuNetDevice::StartDevice (void)
 
   //
   // We're going to need a pointer to the realtime simulator implementation.
-  // It's important to remember that access to that implementation may happen 
-  // in a completely different thread than the simulator is running in (we're 
+  // It's important to remember that access to that implementation may happen
+  // in a completely different thread than the simulator is running in (we're
   // going to spin up that thread below).  We are talking about multiple threads
   // here, so it is very, very dangerous to do any kind of reference couning on
-  // a shared object that is unaware of what is happening.  What we are going to 
-  // do to address that is to get a reference to the realtime simulator here 
+  // a shared object that is unaware of what is happening.  What we are going to
+  // do to address that is to get a reference to the realtime simulator here
   // where we are running in the context of a running simulator scheduler --
   // recall we did a Simulator::Schedule of this method above.  We get the
   // simulator implementation pointer in a single-threaded way and save the
   // underlying raw pointer for use by the (other) read thread.  We must not
-  // free this pointer or we may delete the simulator out from under us an 
-  // everyone else.  We assume that the simulator implementation cannot be 
+  // free this pointer or we may delete the simulator out from under us an
+  // everyone else.  We assume that the simulator implementation cannot be
   // replaced while the emu device is running and so will remain valid through
   // the time during which the read thread is running.
   //
@@ -301,7 +302,7 @@ EmuNetDevice::StartDevice (void)
   NS_LOG_LOGIC ("Creating socket");
 
   //
-  // Call out to a separate process running as suid root in order to get a raw 
+  // Call out to a separate process running as suid root in order to get a raw
   // socket.  We do this to avoid having the entire simulation running as root.
   // If this method returns, we'll have a raw socket waiting for us in m_sock.
   //
@@ -351,13 +352,13 @@ EmuNetDevice::StartDevice (void)
     }
 
   //
-  // This device only works if the underlying interface is up in promiscuous 
+  // This device only works if the underlying interface is up in promiscuous
   // mode.  We could have turned it on in the socket creator, but the situation
-  // is that we expect these devices to be used in conjunction with virtual 
+  // is that we expect these devices to be used in conjunction with virtual
   // machines with connected host-only (simulated) networks, or in a testbed.
-  // There is a lot of setup and configuration happening outside of this one 
+  // There is a lot of setup and configuration happening outside of this one
   // issue, and we expect that configuration to include choosing a valid
-  // interface (e.g, "ath1"), ensuring that the device supports promiscuous 
+  // interface (e.g, "ath1"), ensuring that the device supports promiscuous
   // mode, and placing it in promiscuous mode.  We just make sure of the
   // end result.
   //
@@ -368,7 +369,7 @@ EmuNetDevice::StartDevice (void)
   if ((ifr.ifr_flags & IFF_BROADCAST) != IFF_BROADCAST)
     {
       // We default m_isBroadcast to true but turn it off here if not
-      // supported, because in the common case, overlying IP code will 
+      // supported, because in the common case, overlying IP code will
       // assert during configuration time if this is false, before this
       // method has a chance to set it during runtime
       m_isBroadcast = false;
@@ -401,11 +402,11 @@ EmuNetDevice::CreateSocket (void)
   NS_LOG_FUNCTION_NOARGS ();
   //
   // We want to create a raw socket for our net device.  Unfortunately for us
-  // you have to have root privileges to do that.  Instead of running the 
+  // you have to have root privileges to do that.  Instead of running the
   // entire simulation as root, we decided to make a small program who's whole
   // reason for being is to run as suid root and create a raw socket.  We're
   // going to fork and exec that program soon, but we need to have a socket
-  // to talk to it with.  So we create a local interprocess (Unix) socket 
+  // to talk to it with.  So we create a local interprocess (Unix) socket
   // for that purpose.
   //
   int sock = socket (PF_UNIX, SOCK_DGRAM, 0);
@@ -450,12 +451,12 @@ EmuNetDevice::CreateSocket (void)
   NS_LOG_INFO ("Encoded Unix socket as \"" << path << "\"");
   //
   // Fork and exec the process to create our socket.  If we're us (the parent)
-  // we wait for the child (the socket creator) to complete and read the 
+  // we wait for the child (the socket creator) to complete and read the
   // socket it created using the ancillary data mechanism.
   //
   // Tom Goff reports the possiblility of a deadlock when trying to acquire the
   // python GIL here.  He says that this might be due to trying to access Python
-  // objects after fork() without calling PyOS_AfterFork() to properly reset 
+  // objects after fork() without calling PyOS_AfterFork() to properly reset
   // Python state (including the GIL).  There is no code to cause the problem
   // here in emu, but this was visible in similar code in tap-bridge.
   //
@@ -465,7 +466,7 @@ EmuNetDevice::CreateSocket (void)
       NS_LOG_DEBUG ("Child process");
 
       //
-      // build a command line argument from the encoded endpoint string that 
+      // build a command line argument from the encoded endpoint string that
       // the socket creation process will use to figure out how to respond to
       // the (now) parent process.
       //
@@ -476,7 +477,7 @@ EmuNetDevice::CreateSocket (void)
       //
       // Execute the socket creation process image.
       //
-      status = ::execlp ("emu-sock-creator", 
+      status = ::execlp ("emu-sock-creator",
                          "emu-sock-creator",                            // argv[0] (filename)
                          oss.str ().c_str (),                           // argv[1] (-p<path?
                          (char *)NULL);
@@ -503,7 +504,7 @@ EmuNetDevice::CreateSocket (void)
       NS_ASSERT_MSG (pid == waited, "EmuNetDevice::CreateSocket(): pid mismatch");
 
       //
-      // Check to see if the socket creator exited normally and then take a 
+      // Check to see if the socket creator exited normally and then take a
       // look at the exit code.  If it bailed, so should we.  If it didn't
       // even exit normally, we bail too.
       //
@@ -515,13 +516,13 @@ EmuNetDevice::CreateSocket (void)
               NS_FATAL_ERROR ("EmuNetDevice::CreateSocket(): socket creator exited normally with status " << exitStatus);
             }
         }
-      else 
+      else
         {
           NS_FATAL_ERROR ("EmuNetDevice::CreateSocket(): socket creator exited abnormally");
         }
 
       //
-      // At this point, the socket creator has run successfully and should 
+      // At this point, the socket creator has run successfully and should
       // have created our raw socket and sent it back to the socket address
       // we provided.  Our socket should be waiting on the Unix socket.  We've
       // got to do a bunch of grunto work to get at it, though.
@@ -530,19 +531,19 @@ EmuNetDevice::CreateSocket (void)
       // buffer.  In this case, it describes a buffer (an integer) that will
       // get the data that comes back from the socket creator process.  It will
       // be a magic number that we use as a consistency/sanity check.
-      // 
+      //
       struct iovec iov;
       uint32_t magic;
       iov.iov_base = &magic;
       iov.iov_len = sizeof(magic);
 
       //
-      // The CMSG macros you'll see below are used to create and access control 
-      // messages (which is another name for ancillary data).  The ancillary 
+      // The CMSG macros you'll see below are used to create and access control
+      // messages (which is another name for ancillary data).  The ancillary
       // data is made up of pairs of struct cmsghdr structures and associated
       // data arrays.
       //
-      // First, we're going to allocate a buffer on the stack to receive our 
+      // First, we're going to allocate a buffer on the stack to receive our
       // data array (that contains the socket).  Sometimes you'll see this called
       // an "ancillary element" but the msghdr uses the control message termimology
       // so we call it "control."
@@ -554,7 +555,7 @@ EmuNetDevice::CreateSocket (void)
       // There is a msghdr that is used to minimize the number of parameters
       // passed to recvmsg (which we will use to receive our ancillary data).
       // This structure uses terminology corresponding to control messages, so
-      // you'll see msg_control, which is the pointer to the ancillary data and 
+      // you'll see msg_control, which is the pointer to the ancillary data and
       // controllen which is the size of the ancillary data array.
       //
       // So, initialize the message header that describes the ancillary/control
@@ -591,7 +592,7 @@ EmuNetDevice::CreateSocket (void)
               cmsg->cmsg_type == SCM_RIGHTS)
             {
               //
-              // This is the type of message we want.  Check to see if the magic 
+              // This is the type of message we want.  Check to see if the magic
               // number is correct and then pull out the socket we care about if
               // it matches
               //
@@ -677,8 +678,8 @@ EmuNetDevice::ForwardUp (uint8_t *buf, uint32_t len)
     {
     case LLC:
       //
-      // If the length/type is less than 1500, it corresponds to a length 
-      // interpretation packet.  In this case, it is an 802.3 packet and 
+      // If the length/type is less than 1500, it corresponds to a length
+      // interpretation packet.  In this case, it is an 802.3 packet and
       // will also have an 802.2 LLC header.  If greater than 1500, we
       // find the protocol number (Ethernet type) directly.
       //
@@ -732,9 +733,9 @@ EmuNetDevice::ForwardUp (uint8_t *buf, uint32_t len)
       packetType = NS3_PACKET_OTHERHOST;
     }
 
-  // 
+  //
   // For all kinds of packetType we receive, we hit the promiscuous sniffer
-  // hook and pass a copy up to the promiscuous callback.  Pass a copy to 
+  // hook and pass a copy up to the promiscuous callback.  Pass a copy to
   // make sure that nobody messes with our packet.
   //
   m_promiscSnifferTrace (originalPacket);
@@ -772,11 +773,11 @@ EmuNetDevice::ReadThread (void)
   struct sockaddr_ll addr;
   socklen_t addrSize = sizeof (addr);
 
-  for (;;) 
+  for (;;)
     {
       //
       // Too many pending reads at the same time leads to excessive memory allocations.  This counter prevents it.
-      // 
+      //
       bool skip = false;
 
       {
@@ -828,33 +829,33 @@ EmuNetDevice::ReadThread (void)
     }
 }
 
-bool 
+bool
 EmuNetDevice::Send (Ptr<Packet> packet, const Address &dest, uint16_t protocolNumber)
 {
   NS_LOG_FUNCTION (packet << dest << protocolNumber);
   //
-  // The immediate questions here are how are we going to encapsulate packets and what do we use as the MAC source and 
+  // The immediate questions here are how are we going to encapsulate packets and what do we use as the MAC source and
   // destination (hardware) addresses?
   //
-  // If we return false from EmuNetDevice::NeedsArp, the ArpIpv4Interface will pass the broadcast address as the 
+  // If we return false from EmuNetDevice::NeedsArp, the ArpIpv4Interface will pass the broadcast address as the
   // hardware (Ethernet) destination by default.  If we return true from EmuNetDevice::NeedsArp, then the hardware
   // destination is actually meaningful, but we'll have an ns-3 ARP running on this device.  There can also be an ARP
   // running on the underlying OS so we have to be very careful, both about multiple ARPs and also about TCP, UDP, etc.
   //
-  // We are operating in promiscuous mode on the receive side (all ns-3 net devices are required to implement the 
+  // We are operating in promiscuous mode on the receive side (all ns-3 net devices are required to implement the
   // promiscuous callback in a meaningful way), so we have an option regarding the hardware addresses.  We don't actually have
   // to use the real hardware addresses and IP addresses of the underlying system.  We can completely use MAC-spoofing to
-  // fake out the OS by using the ns-3 assigned MAC address (and also the ns-3 assigned IP addresses).  Ns-3 starts its 
+  // fake out the OS by using the ns-3 assigned MAC address (and also the ns-3 assigned IP addresses).  Ns-3 starts its
   // MAC address allocation using the OUI (vendor-code) 00:00:00 which is unassigned to any organization and is a globally
   // administered address, so there shouldn't be any collisions with real hardware.
   //
-  // So what we do is we return true from EmuNetDevice::NeedsArp which tells ns-3 to use its own ARP.  We spoof the 
+  // So what we do is we return true from EmuNetDevice::NeedsArp which tells ns-3 to use its own ARP.  We spoof the
   // MAC address of the device and use promiscuous mode to receive traffic destined to that address.
   //
   return SendFrom (packet, m_address, dest, protocolNumber);
 }
 
-bool 
+bool
 EmuNetDevice::SendFrom (Ptr<Packet> packet, const Address &src, const Address &dest, uint16_t protocolNumber)
 {
   NS_LOG_FUNCTION (packet << src << dest << protocolNumber);
@@ -902,12 +903,12 @@ EmuNetDevice::SendFrom (Ptr<Packet> packet, const Address &src, const Address &d
 
   //
   // there's not much meaning associated with the different layers in this
-  // device, so don't be surprised when they're all stacked together in 
+  // device, so don't be surprised when they're all stacked together in
   // essentially one place.  We do this for trace consistency across devices.
   //
   m_macTxTrace (packet);
 
-  // 
+  //
   // Enqueue and dequeue the packet to hit the queue tracing hooks.
   //
   m_queue->Enqueue (packet);
@@ -935,11 +936,11 @@ EmuNetDevice::SendFrom (Ptr<Packet> packet, const Address &src, const Address &d
   return rc == -1 ? false : true;
 }
 
-void 
+void
 EmuNetDevice::SetDataRate (DataRate bps)
 {
   NS_LOG_FUNCTION (this << bps);
-  NS_FATAL_ERROR ("EmuNetDevice::SetDataRate():  Unable."); 
+  NS_FATAL_ERROR ("EmuNetDevice::SetDataRate():  Unable.");
 }
 
 void
@@ -949,9 +950,9 @@ EmuNetDevice::SetQueue (Ptr<Queue> q)
   m_queue = q;
 }
 
-Ptr<Queue> 
+Ptr<Queue>
 EmuNetDevice::GetQueue (void) const
-{ 
+{
   NS_LOG_FUNCTION_NOARGS ();
   return m_queue;
 }
@@ -963,47 +964,47 @@ EmuNetDevice::NotifyLinkUp (void)
   m_linkChangeCallbacks ();
 }
 
-void 
+void
 EmuNetDevice::SetIfIndex (const uint32_t index)
 {
   m_ifIndex = index;
 }
 
-uint32_t 
+uint32_t
 EmuNetDevice::GetIfIndex (void) const
 {
   return m_ifIndex;
 }
 
-Ptr<Channel> 
+Ptr<Channel>
 EmuNetDevice::GetChannel (void) const
 {
-  NS_FATAL_ERROR ("EmuNetDevice::GetChannel():  Unable."); 
+  NS_FATAL_ERROR ("EmuNetDevice::GetChannel():  Unable.");
   return 0;
 }
 
-void 
+void
 EmuNetDevice::SetAddress (Address address)
 {
   NS_LOG_FUNCTION (address);
   m_address = Mac48Address::ConvertFrom (address);
 }
 
-Address 
+Address
 EmuNetDevice::GetAddress (void) const
 {
   NS_LOG_FUNCTION_NOARGS ();
   return m_address;
 }
 
-bool 
+bool
 EmuNetDevice::SetMtu (const uint16_t mtu)
 {
-  NS_FATAL_ERROR ("EmuNetDevice::SetMtu():  Unable."); 
+  NS_FATAL_ERROR ("EmuNetDevice::SetMtu():  Unable.");
   return false;
 }
 
-uint16_t 
+uint16_t
 EmuNetDevice::GetMtu (void) const
 {
   struct ifreq ifr;
@@ -1024,19 +1025,19 @@ EmuNetDevice::GetMtu (void) const
   return ifr.ifr_mtu;
 }
 
-bool 
+bool
 EmuNetDevice::IsLinkUp (void) const
 {
   return m_linkUp;
 }
 
-void 
+void
 EmuNetDevice::AddLinkChangeCallback (Callback<void> callback)
 {
   m_linkChangeCallbacks.ConnectWithoutContext (callback);
 }
 
-bool 
+bool
 EmuNetDevice::IsBroadcast (void) const
 {
   return m_isBroadcast;
@@ -1048,7 +1049,7 @@ EmuNetDevice::GetBroadcast (void) const
   return Mac48Address ("ff:ff:ff:ff:ff:ff");
 }
 
-bool 
+bool
 EmuNetDevice::IsMulticast (void) const
 {
   return m_isMulticast;
@@ -1082,13 +1083,13 @@ EmuNetDevice::GetMulticast (Ipv6Address addr) const
   return ad;
 }
 
-bool 
+bool
 EmuNetDevice::IsPointToPoint (void) const
 {
   return false;
 }
 
-bool 
+bool
 EmuNetDevice::IsBridge (void) const
 {
   return false;
@@ -1108,25 +1109,25 @@ EmuNetDevice::SupportsSendFrom () const
 }
 
 
-Ptr<Node> 
+Ptr<Node>
 EmuNetDevice::GetNode (void) const
 {
   return m_node;
 }
 
-void 
+void
 EmuNetDevice::SetNode (Ptr<Node> node)
 {
   m_node = node;
 }
 
-bool 
+bool
 EmuNetDevice::NeedsArp (void) const
 {
   return true;
 }
 
-void 
+void
 EmuNetDevice::SetReceiveCallback (NetDevice::ReceiveCallback cb)
 {
   m_rxCallback = cb;

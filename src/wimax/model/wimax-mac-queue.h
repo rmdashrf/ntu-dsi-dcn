@@ -117,7 +117,7 @@ public:
   void SetFragmentation (MacHeaderType::HeaderType packetType);
   void SetFragmentNumber (MacHeaderType::HeaderType packetType);
   void SetFragmentOffset (MacHeaderType::HeaderType packetType, uint32_t offset);
-private:
+
   struct QueueElement
   {
     QueueElement (void);
@@ -156,7 +156,9 @@ private:
   WimaxMacQueue::QueueElement Front (MacHeaderType::HeaderType packetType) const;
   void Pop (MacHeaderType::HeaderType packetType);
 
+    private:
   typedef std::deque<QueueElement> PacketQueue;
+
   PacketQueue m_queue;
   uint32_t m_maxSize;
   uint32_t m_bytes;

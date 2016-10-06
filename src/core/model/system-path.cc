@@ -44,6 +44,8 @@
 #include <sys/sysctl.h>
 #endif
 
+#include <unistd.h>
+
 
 #if defined (__win32__)
 #define SYSTEM_PATH_SEP "\\"
@@ -65,7 +67,7 @@ std::string Dirname (std::string path)
 
 std::string FindSelfDirectory (void)
 {
-  /** 
+  /**
    * This function returns the path to the running $PREFIX.
    * Mac OS X: _NSGetExecutablePath() (man 3 dyld)
    * Linux: readlink /proc/self/exe
@@ -83,7 +85,7 @@ std::string FindSelfDirectory (void)
     int status;
     while (true)
       {
-        status = readlink("/proc/self/exe", buffer, size);
+        status = ::readlink("/proc/self/exe", buffer, size);
         if (status != 1 || (status == -1 && errno != ENAMETOOLONG))
           {
             break;
@@ -133,7 +135,7 @@ std::string FindSelfDirectory (void)
     NS_ASSERT (status == 0);
     filename = buffer;
     free (buffer);
-  } 
+  }
 #elif defined (__FreeBSD__)
   {
     int     mib[4];
@@ -151,7 +153,7 @@ std::string FindSelfDirectory (void)
 #endif
     return Dirname (filename);
 }
-  
+
 std::string Append (std::string left, std::string right)
 {
   // removing trailing separators from 'left'
@@ -163,7 +165,7 @@ std::string Append (std::string left, std::string right)
 	  break;
 	}
       left = left.substr (0, left.size () - 1);
-    } 
+    }
   std::string retval = left + SYSTEM_PATH_SEP + right;
   return retval;
 }
@@ -202,7 +204,7 @@ std::string Join (std::list<std::string>::const_iterator begin,
     }
   return retval;
 }
-  
+
 std::list<std::string> ReadFiles (std::string path)
 {
   std::list<std::string> files;
@@ -223,7 +225,7 @@ std::list<std::string> ReadFiles (std::string path)
   // XXX: untested
   HANDLE hFind;
   WIN32_FIND_DATA fileData;
-  
+
   hFind = FindFirstFile (path.c_str (), &FindFileData);
   if (hFind == INVALID_HANDLE_VALUE)
     {
@@ -240,7 +242,7 @@ std::list<std::string> ReadFiles (std::string path)
   return files;
 }
 
-std::string 
+std::string
 MakeTemporaryDirectoryName (void)
 {
   char *path = NULL;
@@ -270,10 +272,10 @@ MakeTemporaryDirectoryName (void)
 
   //
   // The final path to the directory is going to look something like
-  // 
+  //
   //   /tmp/ns3-14.30.29.32767
   //
-  // The first segment comes from one of the temporary directory env 
+  // The first segment comes from one of the temporary directory env
   // variables or /tmp if not found.  The directory name starts with an
   // identifier telling folks who is making all of the temp directories
   // and then the local time (in this case 14.30.29 -- which is 2:30 and
@@ -286,7 +288,7 @@ MakeTemporaryDirectoryName (void)
   return oss.str ();
 }
 
-void 
+void
 MakeDirectories (std::string path)
 {
   std::list<std::string> elements = Split (path);

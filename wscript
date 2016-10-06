@@ -505,6 +505,8 @@ def configure(conf):
                 env.append_value('CCFLAGS', flag)
 
     add_gcc_flag('-Wno-error=deprecated-declarations')
+    add_gcc_flag('-Wno-error=unused-local-typedefs')
+    add_gcc_flag('-Wno-error=narrowing')
     add_gcc_flag('-fstrict-aliasing')
     add_gcc_flag('-Wstrict-aliasing')
 
